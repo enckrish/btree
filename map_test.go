@@ -17,7 +17,7 @@ func buildComparableMaps(nkeys, degree int) (*Map[Hash, int], map[Hash]int, []Ha
 
 	// Pushing values in native map and b+ tree map
 	for i := 0; i < nkeys; i++ {
-		m.Set(keys[i], values[i])
+		m.Set(keys[i], &values[i])
 		goMap[keys[i]] = values[i]
 	}
 
@@ -93,7 +93,7 @@ func TestMapEmptyIter(t *testing.T) {
 	m := NewMap[Hash, int](3, func(s Hash) Hash {
 		return s
 	})
-	for _, _ = range m.All() {
+	for range m.All() {
 		t.Fatalf("iterations shouldn't have run on an empty map")
 	}
 }
@@ -106,7 +106,7 @@ func TestMapAllIterator(t *testing.T) {
 
 	// `keysCounted` should match nkeys after loop
 	keysCounted := 0
-	for _, _ = range m.All() {
+	for range m.All() {
 		keysCounted++
 	}
 
@@ -119,18 +119,20 @@ func BenchmarkTreeSet(b *testing.B) {
 	m := NewMap[Hash, int](8, func(s Hash) Hash {
 		return s
 	})
-
-	for i := 0; i < b.N; i++ {
-		key := RandASCIIByte32(i)
-		m.Set(key, 42) // value doesn't matter
+	keys, values := GetData(b.N)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := range b.N {
+		m.Set(keys[i], &values[i])
 	}
 }
 
 func BenchmarkGoMapSet(b *testing.B) {
 	m := make(map[Hash]int)
-
-	for i := 0; i < b.N; i++ {
-		key := RandASCIIByte32(i)
-		m[key] = 42 // value doesn't matter
+	keys, values := GetData(b.N)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := range b.N {
+		m[keys[i]] = values[i] // value doesn't matter
 	}
 }

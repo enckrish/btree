@@ -14,7 +14,7 @@ func NewMap[K any, V any](degree int, hashFn func(K) Hash) *Map[K, V] {
 	}
 }
 
-func (m Map[K, V]) Set(key K, v V) {
+func (m Map[K, V]) Set(key K, v *V) {
 	h := m.hashFn(key)
 	m.SetOp(h[:], v)
 }

@@ -8,7 +8,7 @@ import (
 type Node[V any] interface {
 	// setOrInsert inserts or updates the value of a key in the tree
 	// In case, it creates a new node, it returns the key and the node
-	setOrInsert(Bytes, V) (Bytes, Node[V])
+	setOrInsert(Bytes, *V) (Bytes, Node[V])
 	// lbPositionedRef fetches the leaf node and index to the key/value
 	// corresponding to the lower bound of the supplied key
 	// The key and value can then be fetched using leafNode.pairAt
@@ -49,7 +49,7 @@ func (b *BTree[V]) ValueRef(key Bytes) *V {
 }
 
 // SetOp sets/inserts the given key-value pair in the map, and handles root node split if needed
-func (b *BTree[V]) SetOp(key Bytes, value V) {
+func (b *BTree[V]) SetOp(key Bytes, value *V) {
 	up, newNode := b.root.setOrInsert(key, value)
 
 	// TODO possibility of nil error mistake, please verify

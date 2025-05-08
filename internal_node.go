@@ -70,7 +70,7 @@ func (t *InternalNode[V]) largestSibling(idx int) Node[V] {
 
 func (t *InternalNode[V]) insertIndex(key Bytes) (pos int, exists bool) {
 	return sort.Find(len(t.keys), func(i int) int {
-		return bytes.Compare(key, t.keys[i][:])
+		return bytes.Compare(key, t.keys[i])
 	})
 }
 
@@ -98,7 +98,7 @@ func (t *InternalNode[V]) valueRef(key Bytes) *V {
 	return nil
 }
 
-func (t *InternalNode[V]) setOrInsert(key Bytes, value V) (Bytes, Node[V]) {
+func (t *InternalNode[V]) setOrInsert(key Bytes, value *V) (Bytes, Node[V]) {
 	c := t.childForKey(key)
 	key, ptr := c.setOrInsert(key, value)
 	if ptr == nil {

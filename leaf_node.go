@@ -8,14 +8,14 @@ import (
 
 type LeafNode[V any] struct {
 	keys   []Bytes
-	values []V
+	values []*V
 	next   *LeafNode[V] // points to the leaf to its right
 }
 
 func newLeafNode[V any](nKeys int) *LeafNode[V] {
 	return &LeafNode[V]{
 		keys:   make([]Bytes, 0, nKeys),
-		values: make([]V, 0, nKeys),
+		values: make([]*V, 0, nKeys),
 		next:   nil,
 	}
 }
@@ -45,7 +45,7 @@ func (l *LeafNode[V]) pairAt(idx int) (Bytes, *V) {
 	if idx >= len(l.keys) {
 		return nil, nil
 	}
-	return l.keys[idx], &l.values[idx]
+	return l.keys[idx], l.values[idx]
 }
 
 func (l *LeafNode[V]) lbPositionedRef(key Bytes) (*LeafNode[V], int) {
@@ -63,7 +63,7 @@ func (l *LeafNode[V]) valueRef(key Bytes) *V {
 	return nil
 }
 
-func (l *LeafNode[V]) setOrInsert(key Bytes, value V) (Bytes, Node[V]) {
+func (l *LeafNode[V]) setOrInsert(key Bytes, value *V) (Bytes, Node[V]) {
 	_, idx := l.lbPositionedRef(key)
 
 	// Key already exists in tree
@@ -83,7 +83,7 @@ func (l *LeafNode[V]) setOrInsert(key Bytes, value V) (Bytes, Node[V]) {
 	return node.keys[0], node
 }
 
-func (l *LeafNode[V]) insertAtIndex(idx int, key Bytes, value V) {
+func (l *LeafNode[V]) insertAtIndex(idx int, key Bytes, value *V) {
 	// Expand slices to add new values
 	size := len(l.keys)
 	l.keys = l.keys[:size+1]
@@ -95,7 +95,7 @@ func (l *LeafNode[V]) insertAtIndex(idx int, key Bytes, value V) {
 	l.values[idx] = value
 }
 
-func (l *LeafNode[V]) insertWithSplit(idx int, key Bytes, value V) *LeafNode[V] {
+func (l *LeafNode[V]) insertWithSplit(idx int, key Bytes, value *V) *LeafNode[V] {
 	size := ceilDiv(cap(l.keys), 2)  // number of keys to keep in the old node
 	r := newLeafNode[V](cap(l.keys)) // new right node
 	r.next = l.next

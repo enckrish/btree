@@ -13,18 +13,19 @@ import (
 func MakeInternalNode(deg int) *InternalNode[int] {
 	in := newInternalNode[int](deg)
 
+	rv, lv := rand.Int(), rand.Int()
 	rightSentLeaf := &LeafNode[int]{
-		keys:   []Bytes{Bytes{250}},
-		values: []int{rand.Int()},
+		keys:   []Bytes{{250}},
+		values: []*int{&rv},
 		next:   nil,
 	}
 
 	leftSentLeaf := &LeafNode[int]{
-		keys:   []Bytes{Bytes{5}},
-		values: []int{rand.Int()},
+		keys:   []Bytes{{5}},
+		values: []*int{&lv},
 		next:   rightSentLeaf,
 	}
-	
+
 	in.keys = append(in.keys, Bytes{250})
 	in.pointers = append(in.pointers, leftSentLeaf, rightSentLeaf)
 	return in
@@ -45,7 +46,8 @@ func MakeFilledNode() (*InternalNode[int], []Bytes) {
 	in := MakeInternalNode(30)
 	keys := MakeKeysWithGaps(28, 5)
 	for i, key := range keys {
-		_, newNode := in.setOrInsert(key, i*10+1)
+		v := i*10 + 1
+		_, newNode := in.setOrInsert(key, &v)
 		if newNode != nil {
 			panic(fmt.Sprintf("possible test misconfiguration: at iter %d, more keys than can fit in single node", i))
 		}
@@ -75,7 +77,8 @@ func TestInternalSortedKeys(t *testing.T) {
 	})
 
 	for i, key := range keys {
-		_, newNode := in.setOrInsert(key, i*10+1)
+		v := i*10 + 1
+		_, newNode := in.setOrInsert(key, &v)
 		if newNode != nil {
 			panic(fmt.Sprintf("possible test misconfiguration: at iter %d, more keys than can fit in single node", i))
 		}
@@ -127,7 +130,8 @@ func TestInternalSplit(t *testing.T) {
 		return bytes.Compare(a, b)
 	})
 
-	upKey, newNode := in.setOrInsert(testKey, rand.Int())
+	v := rand.Int()
+	upKey, newNode := in.setOrInsert(testKey, &v)
 	node := newNode.(*InternalNode[int])
 
 	lkn := len(in.keys)

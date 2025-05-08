@@ -9,7 +9,7 @@ import (
 func MakeLeafNode[V any](n int) *LeafNode[V] {
 	return &LeafNode[V]{
 		keys:   make([]Bytes, 0, n),
-		values: make([]V, 0, n),
+		values: make([]*V, 0, n),
 	}
 }
 
@@ -24,7 +24,7 @@ func TestLeafSorted(t *testing.T) {
 	keys, values := GetData(5)
 
 	for i := 0; i < 5; i++ {
-		ln.setOrInsert(keys[i][:], values[i])
+		ln.setOrInsert(keys[i][:], &values[i])
 	}
 
 	if !isSorted(ln) {
@@ -37,7 +37,7 @@ func TestLeafValues(t *testing.T) {
 	ln := MakeLeafNode[int](n)
 	keys, values := GetData(n)
 	for i := 0; i < 5; i++ {
-		_, p := ln.setOrInsert(keys[i][:], values[i])
+		_, p := ln.setOrInsert(keys[i][:], &values[i])
 		if p != nil {
 			t.Error("undesired splitting")
 		}
@@ -57,7 +57,7 @@ func TestLeafSplit(t *testing.T) {
 
 	var node Node[int]
 	for i := 0; i < n+1; i++ {
-		_, node = ln.setOrInsert(keys[i][:], values[i])
+		_, node = ln.setOrInsert(keys[i][:], &values[i])
 		if node != nil && i != n {
 			t.Error("split at incorrect position")
 		}
@@ -93,7 +93,7 @@ func TestLeafUpdate(t *testing.T) {
 	ln := MakeLeafNode[int](5)
 	keys, values := GetData(5)
 	for i := 0; i < 5; i++ {
-		ln.setOrInsert(keys[i][:], values[i])
+		ln.setOrInsert(keys[i][:], &values[i])
 	}
 
 	idx := 3
@@ -105,7 +105,7 @@ func TestLeafUpdate(t *testing.T) {
 		t.Error("old value is incorrect")
 	}
 
-	ln.setOrInsert(keys[idx][:], newVal)
+	ln.setOrInsert(keys[idx][:], &newVal)
 	if r := ln.valueRef(key[:]); r == nil || *r != newVal {
 		t.Error("new value is incorrect")
 	}
