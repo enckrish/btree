@@ -24,19 +24,10 @@ func abs(x int) int {
 	return x
 }
 
-func HashCmp(a, b Hash) int {
-	for i := 0; i < 32; i++ {
-		if a[i] < b[i] {
-			return -1
-		} else if a[i] > b[i] {
-			return 1
-		}
+func printStringBytes(bs []Bytes) {
+	for _, b := range bs {
+		fmt.Println(string(b))
 	}
-	return 0
-}
-
-func printHash(h Hash) {
-	fmt.Println(string(h[:]))
 }
 
 // hasRepeatsFn takes a list and a isEqual function and returns if a element occurs more than once in a row
@@ -94,4 +85,24 @@ func assert(cond bool, f string, a ...any) {
 	}
 	msg := fmt.Sprintf(f, a...)
 	panic(msg)
+}
+
+func shiftElementsRight[T any](arr []T, from int, by int) ([]T, bool) {
+	if cap(arr) < len(arr)+by {
+		return arr, false
+	}
+
+	arr = arr[:len(arr)+by]
+	copy(arr[from+by:], arr[from:])
+	return arr, true
+}
+
+func shiftElementsLeft[T any](arr []T, from int, by int) ([]T, bool) {
+	if from-by < 0 {
+		return arr, false
+	}
+
+	copy(arr[from-by:], arr[from:])
+	arr = arr[:len(arr)-by]
+	return arr, true
 }

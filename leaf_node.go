@@ -24,8 +24,17 @@ func (l *LeafNode[V]) Next() *LeafNode[V] {
 	return l.next
 }
 
+func (l *LeafNode[V]) len() int {
+	return len(l.keys)
+}
+
+func (l *LeafNode[V]) needsRebalance() bool {
+	minKeys := ceilDiv(cap(l.keys), 2)
+	return len(l.keys) < minKeys
+}
+
 func (l *LeafNode[V]) isHealthy() bool {
-	minKeysExists := len(l.keys) >= ceilDiv(cap(l.keys), 2)
+	rebalNeeded := l.needsRebalance()
 	keyValLenMatch := len(l.keys) == len(l.values)
 	keysSorted := slices.IsSortedFunc(l.keys, func(a, b Bytes) int {
 		return bytes.Compare(a, b)
@@ -33,7 +42,7 @@ func (l *LeafNode[V]) isHealthy() bool {
 	keysUnique := !hasRepeatsFn(l.keys, bytes.Equal)
 	nextIsCorrect := l.next == nil || bytes.Compare(l.keys[len(l.keys)-1], l.next.keys[0]) == -1
 
-	healthy := minKeysExists && keyValLenMatch && keysSorted && keysUnique && nextIsCorrect
+	healthy := !rebalNeeded && keyValLenMatch && keysSorted && keysUnique && nextIsCorrect
 	return healthy
 }
 
@@ -57,8 +66,8 @@ func (l *LeafNode[V]) lbPositionedRef(key Bytes) (*LeafNode[V], int) {
 
 func (l *LeafNode[V]) valueRef(key Bytes) *V {
 	l, i := l.lbPositionedRef(key)
-	if k, v := l.pairAt(i); k != nil && bytes.Equal(k, key) {
-		return v
+	if i < len(l.keys) && bytes.Equal(l.keys[i], key) {
+		return l.values[i]
 	}
 	return nil
 }
@@ -84,15 +93,9 @@ func (l *LeafNode[V]) setOrInsert(key Bytes, value *V) (Bytes, Node[V]) {
 }
 
 func (l *LeafNode[V]) insertAtIndex(idx int, key Bytes, value *V) {
-	// Expand slices to add new values
-	size := len(l.keys)
-	l.keys = l.keys[:size+1]
-	l.values = l.values[:size+1]
-
-	copy(l.keys[idx+1:], l.keys[idx:])
-	copy(l.values[idx+1:], l.values[idx:])
-	l.keys[idx] = key
-	l.values[idx] = value
+	l.keys, _ = shiftElementsRight(l.keys, idx, 1)
+	l.values, _ = shiftElementsRight(l.values, idx, 1)
+	l.keys[idx], l.values[idx] = key, value
 }
 
 func (l *LeafNode[V]) insertWithSplit(idx int, key Bytes, value *V) *LeafNode[V] {
@@ -120,4 +123,24 @@ func (l *LeafNode[V]) insertWithSplit(idx int, key Bytes, value *V) *LeafNode[V]
 	// insert new key and value in the correct node
 	keyLeaf.insertAtIndex(idx, key, value)
 	return r
+}
+
+func (l *LeafNode[V]) delete(key Bytes, _ bool) bool {
+	l, i := l.lbPositionedRef(key)
+
+	// key found
+	if i < len(l.keys) && bytes.Equal(l.keys[i], key) {
+		l.keys, _ = shiftElementsLeft(l.keys, i+1, 1)
+		l.values, _ = shiftElementsLeft(l.values, i+1, 1)
+		// Keeping these here for reference when delete will be tested
+		//copy(l.keys[i:], l.keys[i+1:])
+		//l.keys = l.keys[:len(l.keys)-1]
+		//
+		//copy(l.values[i:], l.values[i+1:])
+		//l.values = l.values[:len(l.values)-1]
+		return true
+	}
+
+	// key not found
+	return false
 }

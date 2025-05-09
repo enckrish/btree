@@ -18,8 +18,17 @@ func newInternalNode[V any](degree int) *InternalNode[V] {
 	}
 }
 
+func (t *InternalNode[V]) len() int {
+	return len(t.pointers)
+}
+
+func (t *InternalNode[V]) needsRebalance() bool {
+	minPtrs := ceilDiv(cap(t.pointers), 2)
+	return len(t.pointers) < minPtrs
+}
+
 func (t *InternalNode[V]) isHealthy() bool {
-	minPtrsExists := len(t.pointers) >= ceilDiv(cap(t.pointers), 2)
+	rebalNeeded := t.needsRebalance()
 	keyPtrLenCheck := len(t.keys) == len(t.pointers)-1
 	keysSorted := slices.IsSortedFunc(t.keys, func(a, b Bytes) int {
 		return bytes.Compare(a, b)
@@ -34,7 +43,7 @@ func (t *InternalNode[V]) isHealthy() bool {
 		}
 	}
 
-	healthy := minPtrsExists && keyPtrLenCheck && keysSorted && keysUnique && ptrsUnique
+	healthy := !rebalNeeded && keyPtrLenCheck && keysSorted && keysUnique && ptrsUnique
 	return healthy
 }
 
@@ -54,18 +63,22 @@ func (t *InternalNode[V]) numUnhealthyChildren() (unhealthy int, total int) {
 	return
 }
 
-func (t *InternalNode[V]) leftPtr(pos int) Node[V] {
-	return t.pointers[pos]
-}
-
-func (t *InternalNode[V]) rightPtr(pos int) Node[V] {
-	return t.pointers[pos+1]
-}
-
-func (t *InternalNode[V]) largestSibling(idx int) Node[V] {
-	// TODO unimplemented
+func (t *InternalNode[V]) bestSibling(i int) (sibling Node[V], dir int, downKeyIndex int) {
 	// for getting best local sibling for rebalancing during deletion
-	return nil
+	if i == 0 {
+		return t.pointers[1], RightSibling, 0
+	}
+	if i == len(t.pointers)-1 {
+		return t.pointers[len(t.pointers)-2], LeftSibling, len(t.keys) - 2
+	}
+	left := t.pointers[i]
+	right := t.pointers[i+1]
+
+	// chooses the sibling with maximum number of pointers, so that node deletion ops are minimum
+	if left.len() > right.len() {
+		return left, LeftSibling, i
+	}
+	return right, RightSibling, i
 }
 
 func (t *InternalNode[V]) insertIndex(key Bytes) (pos int, exists bool) {
@@ -74,18 +87,17 @@ func (t *InternalNode[V]) insertIndex(key Bytes) (pos int, exists bool) {
 	})
 }
 
-func (t *InternalNode[V]) childForKey(key Bytes) (ptr Node[V]) {
+func (t *InternalNode[V]) childIndexForKey(key Bytes) int {
 	pos, exists := t.insertIndex(key)
 	if exists {
-		ptr = t.rightPtr(pos)
-	} else {
-		ptr = t.leftPtr(pos)
+		return pos + 1
 	}
-	return
+	return pos
 }
 
 func (t *InternalNode[V]) lbPositionedRef(key Bytes) (*LeafNode[V], int) {
-	child := t.childForKey(key)
+	ci := t.childIndexForKey(key)
+	child := t.pointers[ci]
 	l, i := child.lbPositionedRef(key)
 	return l, i
 }
@@ -99,7 +111,8 @@ func (t *InternalNode[V]) valueRef(key Bytes) *V {
 }
 
 func (t *InternalNode[V]) setOrInsert(key Bytes, value *V) (Bytes, Node[V]) {
-	c := t.childForKey(key)
+	ci := t.childIndexForKey(key)
+	c := t.pointers[ci]
 	key, ptr := c.setOrInsert(key, value)
 	if ptr == nil {
 		// No new child formed
@@ -128,13 +141,8 @@ func (t *InternalNode[V]) insertNode(key Bytes, ptr Node[V]) (upKey Bytes, newNo
 }
 
 func (t *InternalNode[V]) insertAtIndex(idx int, key Bytes, ptr Node[V]) {
-	// Expand slices to add new values
-	size := len(t.keys)
-	t.keys = t.keys[:size+1]
-	t.pointers = t.pointers[:size+2] // pointers are always one longer than keys
-
-	copy(t.keys[idx+1:], t.keys[idx:])
-	copy(t.pointers[idx+2:], t.pointers[idx+1:])
+	t.keys, _ = shiftElementsRight(t.keys, idx, 1)
+	t.pointers, _ = shiftElementsRight(t.pointers, idx+1, 1)
 	t.keys[idx] = key
 	t.pointers[idx+1] = ptr
 }
@@ -164,3 +172,26 @@ func (t *InternalNode[V]) insertWithSplit(pos int, key Bytes, ptr Node[V]) (upKe
 
 	return upKey, r
 }
+
+//
+//func (t *InternalNode[V]) delete(key Bytes, lazy bool) bool {
+//	assert(!lazy, "lazy delete unimplemented")
+//
+//	ci := t.childIndexForKey(key)
+//	child := t.pointers[ci]
+//	del := child.delete(key, lazy)
+//
+//	if !lazy && child.needsRebalance() {
+//		sib, dir, dkIdx := t.bestSibling(ci)
+//		cdel, upKey := child.rebalanceWith(sib, dir, t.keys[dkIdx])
+//		if upKey != nil {
+//			t.keys[dkIdx] = upKey
+//		}
+//		if cdel {
+//			shiftElementsLeft(t.keys, ci+1, 1)
+//			shiftElementsLeft(t.pointers, ci+1, 1)
+//		}
+//	}
+//
+//	return del
+//}

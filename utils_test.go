@@ -1,23 +1,18 @@
 package btree
 
 import (
-	"encoding/binary"
+	crnd "crypto/rand"
 	"math/rand"
-	"time"
 )
 
 var letterBytes = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 func RandASCIIByte32(_ int) Hash {
 	var b Hash
-	t := time.Now().UnixNano()
-	for i := range 4 {
-		binary.BigEndian.PutUint64(b[8*i:8*(i+1)], uint64(t*(int64(i)+1)))
-	}
+	_, _ = crnd.Read(b[:])
 	for i := 0; i < 32; i++ {
 		b[i] = letterBytes[int(b[i])%len(letterBytes)]
 	}
-
 	return b
 }
 

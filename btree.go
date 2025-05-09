@@ -5,25 +5,6 @@ import (
 	"iter"
 )
 
-type Node[V any] interface {
-	// setOrInsert inserts or updates the value of a key in the tree
-	// In case, it creates a new node, it returns the key and the node
-	setOrInsert(Bytes, *V) (Bytes, Node[V])
-	// lbPositionedRef fetches the leaf node and index to the key/value
-	// corresponding to the lower bound of the supplied key
-	// The key and value can then be fetched using leafNode.pairAt
-	lbPositionedRef(Bytes) (*LeafNode[V], int)
-	// valueRef returns the reference to the stored value, and is
-	// implemented as a wrapper on top of lbPositionedRef
-	valueRef(key Bytes) *V
-	// isHealthy checks if node properly follows all the restrictions
-	// used primarily for tests, but can also be used for balancing of tree when
-	// deletion operations postpone balancing
-	isHealthy() bool
-	// numUnhealthyChildren returns number of nodes in a subtree (excluding itself) which return isHealthy as false
-	numUnhealthyChildren() (unhealthy int, total int)
-}
-
 // BTree is a general-propose B+ tree that takes byte arrays as key and supports arbitrary value types.
 // This is in contrast to Map, which hashes all keys before inserting them in the tree.
 type BTree[V any] struct {
