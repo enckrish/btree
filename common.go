@@ -87,22 +87,22 @@ func assert(cond bool, f string, a ...any) {
 	panic(msg)
 }
 
-func shiftElementsRight[T any](arr []T, from int, by int) ([]T, bool) {
-	if cap(arr) < len(arr)+by {
-		return arr, false
+func shlArr[T any](arr []T, by int) {
+	assert(by >= 0, "cannot be shifted by negative number")
+	if by >= len(arr) {
+		return
 	}
-
-	arr = arr[:len(arr)+by]
-	copy(arr[from+by:], arr[from:])
-	return arr, true
+	preLen := len(arr)
+	copy(arr[:preLen], arr[by:])
+	arr = arr[:preLen] // TODO posiibly redundant
 }
 
-func shiftElementsLeft[T any](arr []T, from int, by int) ([]T, bool) {
-	if from-by < 0 {
-		return arr, false
+func shrArr[T any](arr []T, by int) {
+	assert(by >= 0, "cannot be shifted by negative number")
+	if by >= len(arr) {
+		return
 	}
-
-	copy(arr[from-by:], arr[from:])
-	arr = arr[:len(arr)-by]
-	return arr, true
+	preLen := len(arr)
+	copy(arr[by:preLen], arr)
+	arr = arr[:preLen] // todo possibly redundant
 }

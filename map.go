@@ -7,7 +7,6 @@ type Map[K any, V any] struct {
 
 func NewMap[K any, V any](degree int, hashFn func(K) Hash) *Map[K, V] {
 	btree := NewBTree[V](degree)
-
 	return &Map[K, V]{
 		BTree:  btree,
 		hashFn: hashFn,
@@ -23,4 +22,9 @@ func (m Map[K, V]) Get(key K) *V {
 	h := m.hashFn(key)
 	v := m.ValueRef(h[:])
 	return v
+}
+
+func (m Map[K, V]) Del(key K) bool {
+	h := m.hashFn(key)
+	return m.DelOp(h[:], false)
 }

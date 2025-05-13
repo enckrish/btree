@@ -28,19 +28,22 @@ func (l *LeafNode[V]) len() int {
 	return len(l.keys)
 }
 
+func (l *LeafNode[V]) minCount() int {
+	return ceilDiv(cap(l.keys), 2)
+}
 func (l *LeafNode[V]) needsRebalance() bool {
-	minKeys := ceilDiv(cap(l.keys), 2)
-	return len(l.keys) < minKeys
+	minKeys := l.minCount()
+	return l.len() < minKeys
 }
 
 func (l *LeafNode[V]) isHealthy() bool {
 	rebalNeeded := l.needsRebalance()
-	keyValLenMatch := len(l.keys) == len(l.values)
+	keyValLenMatch := l.len() == len(l.values)
 	keysSorted := slices.IsSortedFunc(l.keys, func(a, b Bytes) int {
 		return bytes.Compare(a, b)
 	})
 	keysUnique := !hasRepeatsFn(l.keys, bytes.Equal)
-	nextIsCorrect := l.next == nil || bytes.Compare(l.keys[len(l.keys)-1], l.next.keys[0]) == -1
+	nextIsCorrect := l.next == nil || bytes.Compare(l.keys[l.len()-1], l.next.keys[0]) == -1
 
 	healthy := !rebalNeeded && keyValLenMatch && keysSorted && keysUnique && nextIsCorrect
 	return healthy
@@ -51,14 +54,14 @@ func (l *LeafNode[V]) numUnhealthyChildren() (unhealthy int, total int) {
 }
 
 func (l *LeafNode[V]) pairAt(idx int) (Bytes, *V) {
-	if idx >= len(l.keys) {
+	if idx >= l.len() {
 		return nil, nil
 	}
 	return l.keys[idx], l.values[idx]
 }
 
 func (l *LeafNode[V]) lbPositionedRef(key Bytes) (*LeafNode[V], int) {
-	i := sort.Search(len(l.keys), func(i int) bool {
+	i := sort.Search(l.len(), func(i int) bool {
 		return bytes.Compare(key, l.keys[i]) <= 0
 	})
 	return l, i
@@ -66,7 +69,7 @@ func (l *LeafNode[V]) lbPositionedRef(key Bytes) (*LeafNode[V], int) {
 
 func (l *LeafNode[V]) valueRef(key Bytes) *V {
 	l, i := l.lbPositionedRef(key)
-	if i < len(l.keys) && bytes.Equal(l.keys[i], key) {
+	if i < l.len() && bytes.Equal(l.keys[i], key) {
 		return l.values[i]
 	}
 	return nil
@@ -76,13 +79,13 @@ func (l *LeafNode[V]) setOrInsert(key Bytes, value *V) (Bytes, Node[V]) {
 	_, idx := l.lbPositionedRef(key)
 
 	// Key already exists in tree
-	if idx < len(l.keys) && bytes.Equal(l.keys[idx], key) {
+	if idx < l.len() && bytes.Equal(l.keys[idx], key) {
 		l.values[idx] = value
 		return nil, nil
 	}
 
 	// Key doesn't exist but leaf has available space
-	if len(l.keys) < cap(l.keys) {
+	if l.len() < cap(l.keys) {
 		l.insertAtIndex(idx, key, value)
 		return nil, nil
 	}
@@ -93,13 +96,17 @@ func (l *LeafNode[V]) setOrInsert(key Bytes, value *V) (Bytes, Node[V]) {
 }
 
 func (l *LeafNode[V]) insertAtIndex(idx int, key Bytes, value *V) {
-	l.keys, _ = shiftElementsRight(l.keys, idx, 1)
-	l.values, _ = shiftElementsRight(l.values, idx, 1)
+	sz := l.len()
+	l.keys = l.keys[:sz+1]
+	l.values = l.values[:sz+1]
+	shrArr(l.keys[idx:], 1)
+	shrArr(l.values[idx:], 1)
+
 	l.keys[idx], l.values[idx] = key, value
 }
 
 func (l *LeafNode[V]) insertWithSplit(idx int, key Bytes, value *V) *LeafNode[V] {
-	size := ceilDiv(cap(l.keys), 2)  // number of keys to keep in the old node
+	size := l.minCount()             // number of keys to keep in the old node
 	r := newLeafNode[V](cap(l.keys)) // new right node
 	r.next = l.next
 	l.next = r
@@ -129,18 +136,59 @@ func (l *LeafNode[V]) delete(key Bytes, _ bool) bool {
 	l, i := l.lbPositionedRef(key)
 
 	// key found
-	if i < len(l.keys) && bytes.Equal(l.keys[i], key) {
-		l.keys, _ = shiftElementsLeft(l.keys, i+1, 1)
-		l.values, _ = shiftElementsLeft(l.values, i+1, 1)
-		// Keeping these here for reference when delete will be tested
-		//copy(l.keys[i:], l.keys[i+1:])
-		//l.keys = l.keys[:len(l.keys)-1]
-		//
-		//copy(l.values[i:], l.values[i+1:])
-		//l.values = l.values[:len(l.values)-1]
+	if i < l.len() && bytes.Equal(l.keys[i], key) {
+		sz := l.len()
+		shlArr(l.keys[i:], 1)
+		shlArr(l.values[i:], 1)
+		l.keys = l.keys[:sz-1]
+		l.values = l.values[:sz-1]
 		return true
 	}
-
 	// key not found
 	return false
+}
+
+func (l *LeafNode[V]) rebalanceWith(rightNode Node[V], _ Bytes) Bytes {
+	// cast sibling as leaf node type
+	switch rightNode.(type) {
+	case *LeafNode[V]:
+		break
+	default:
+		panic("expected leaf node")
+	}
+	rLeaf := rightNode.(*LeafNode[V])
+
+	// if a single node can contain all the data
+	merge := cap(l.keys) >= l.len()+rLeaf.len()
+	if merge {
+		l.keys = append(l.keys, rLeaf.keys...)
+		l.values = append(l.values, rLeaf.values...)
+		l.next = rLeaf.next
+		return nil
+	}
+
+	redistributeLeafUnoptimized(l, rLeaf)
+	return rLeaf.keys[0]
+}
+
+func redistributeLeafUnoptimized[V any](l *LeafNode[V], r *LeafNode[V]) {
+	totalLen := l.len() + r.len()
+	temp := newLeafNode[V](totalLen)
+	temp.keys = append(temp.keys, l.keys...)
+	temp.keys = append(temp.keys, r.keys...)
+	temp.values = append(temp.values, l.values...)
+	temp.values = append(temp.values, r.values...)
+
+	lsz := l.minCount()
+	rsz := totalLen - lsz
+
+	copy(l.keys[:lsz], temp.keys)
+	copy(l.values[:lsz], temp.values)
+	l.keys = l.keys[:lsz]
+	l.values = l.values[:lsz]
+
+	copy(r.keys[:rsz], temp.keys[lsz:])
+	copy(r.values[:rsz], temp.values[lsz:])
+	r.keys = r.keys[:rsz]
+	r.values = r.values[:rsz]
 }

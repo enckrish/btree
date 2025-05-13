@@ -40,6 +40,22 @@ func (b *BTree[V]) SetOp(key Bytes, value *V) {
 	b.newRoot(up, newNode)
 }
 
+func (b *BTree[V]) DelOp(key Bytes, lazy bool) bool {
+	assert(!lazy, "lazy delete unimplemented")
+	del := b.root.delete(key, lazy)
+	if !lazy && del {
+		switch b.root.(type) {
+		case *InternalNode[V]:
+			ri := b.root.(*InternalNode[V])
+			if ri.len() == 1 {
+				b.root = ri.pointers[0]
+				b.height--
+			}
+		}
+	}
+	return del
+}
+
 func (b *BTree[V]) newRoot(up Bytes, node Node[V]) {
 	root := newInternalNode[V](b.deg)
 	root.keys = append(root.keys, up)
