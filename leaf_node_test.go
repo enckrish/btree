@@ -1,17 +1,11 @@
 package btree
 
 import (
+	"bytes"
 	"math/rand"
 	"slices"
 	"testing"
 )
-
-func MakeLeafNode[V any](n int) *LeafNode[V] {
-	return &LeafNode[V]{
-		keys:   make([]Bytes, 0, n),
-		values: make([]*V, 0, n),
-	}
-}
 
 func isSorted[V any](ln *LeafNode[V]) bool {
 	return slices.IsSortedFunc(ln.keys, func(a, b Bytes) int {
@@ -20,7 +14,7 @@ func isSorted[V any](ln *LeafNode[V]) bool {
 }
 
 func TestLeafSorted(t *testing.T) {
-	ln := MakeLeafNode[int](5)
+	ln := newLeafNode[int](5)
 	keys, values := GetData(5)
 
 	for i := 0; i < 5; i++ {
@@ -32,9 +26,17 @@ func TestLeafSorted(t *testing.T) {
 	}
 }
 
+func valueRefLeaf(l *LeafNode[int], key Bytes) *int {
+	i, _ := lowerBoundBytesArr(l.keys, key)
+	if i < l.len() && bytes.Equal(l.keys[i], key) {
+		return l.values[i]
+	}
+	return nil
+}
+
 func TestLeafValues(t *testing.T) {
 	n := 5
-	ln := MakeLeafNode[int](n)
+	ln := newLeafNode[int](n)
 	keys, values := GetData(n)
 	for i := 0; i < 5; i++ {
 		_, p := ln.setOrInsert(keys[i][:], &values[i])
@@ -44,7 +46,7 @@ func TestLeafValues(t *testing.T) {
 	}
 
 	for i := 0; i < 5; i++ {
-		if v := ln.valueRef(keys[i][:]); v == nil || *v != values[i] {
+		if v := valueRefLeaf(ln, keys[i][:]); v == nil || *v != values[i] {
 			t.Error("value not correct")
 		}
 	}
@@ -52,7 +54,7 @@ func TestLeafValues(t *testing.T) {
 
 func TestLeafSplit(t *testing.T) {
 	n := 5
-	ln := MakeLeafNode[int](n)
+	ln := newLeafNode[int](n)
 	keys, values := GetData(n + 1)
 
 	var node Node[int]
@@ -90,7 +92,7 @@ func TestLeafSplit(t *testing.T) {
 }
 
 func TestLeafUpdate(t *testing.T) {
-	ln := MakeLeafNode[int](5)
+	ln := newLeafNode[int](5)
 	keys, values := GetData(5)
 	for i := 0; i < 5; i++ {
 		ln.setOrInsert(keys[i][:], &values[i])
@@ -101,12 +103,12 @@ func TestLeafUpdate(t *testing.T) {
 	oldVal := values[idx]
 	newVal := rand.Int()
 
-	if r := ln.valueRef(key[:]); r == nil || *r != oldVal {
+	if r := valueRefLeaf(ln, key[:]); r == nil || *r != oldVal {
 		t.Error("old value is incorrect")
 	}
 
 	ln.setOrInsert(keys[idx][:], &newVal)
-	if r := ln.valueRef(key[:]); r == nil || *r != newVal {
+	if r := valueRefLeaf(ln, key[:]); r == nil || *r != newVal {
 		t.Error("new value is incorrect")
 	}
 }

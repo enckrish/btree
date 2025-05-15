@@ -1,18 +1,6 @@
 package btree
 
 type Node[V any] interface {
-	// setOrInsert inserts or updates the value of a key in the tree.
-	// In case, it creates a new node, it returns the key and the node.
-	setOrInsert(Bytes, *V) (Bytes, Node[V])
-	// lbPositionedRef fetches the leaf node and index to the key/value
-	// corresponding to the lower bound of the supplied key, where index in [0, n].
-	// Index of n is returned when supplied key is larger than existing keys in that leaf,
-	// but lesser than right sibling's minimum key.
-	// The key and value can then be fetched using leafNode.pairAt.
-	lbPositionedRef(Bytes) (*LeafNode[V], int)
-	// valueRef returns the reference to the stored value, and is
-	// implemented as a wrapper on top of lbPositionedRef.
-	valueRef(key Bytes) *V
 	// Returns true if the node needs to be rebalanced. Used for rebalancing
 	// while deletion or later, if we are being lazy.
 	needsRebalance() bool
@@ -32,4 +20,5 @@ type Node[V any] interface {
 	// len returns the number of keys or pointers in LeafNode or InternalNode respectively.
 	// It is used to choose which sibling to rebalance a node with
 	len() int
+	isLeaf() bool
 }

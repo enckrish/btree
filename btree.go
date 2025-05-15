@@ -25,32 +25,26 @@ func (b *BTree[V]) Degree() int {
 	return b.deg
 }
 
-func (b *BTree[V]) ValueRef(key Bytes) *V {
-	return b.root.valueRef(key)
+func (b *BTree[V]) GetOp(key Bytes) *V {
+	return valueRef(b.root, key)
 }
 
 // SetOp sets/inserts the given key-value pair in the map, and handles root node split if needed
 func (b *BTree[V]) SetOp(key Bytes, value *V) {
-	up, newNode := b.root.setOrInsert(key, value)
-
-	// TODO possibility of nil error mistake, please verify
-	if newNode == nil {
-		return
+	key, newNode := setOrInsert(b.root, key, value)
+	if newNode != nil {
+		b.newRoot(key, newNode)
 	}
-	b.newRoot(up, newNode)
 }
 
 func (b *BTree[V]) DelOp(key Bytes, lazy bool) bool {
 	assert(!lazy, "lazy delete unimplemented")
 	del := b.root.delete(key, lazy)
-	if !lazy && del {
-		switch b.root.(type) {
-		case *InternalNode[V]:
-			ri := b.root.(*InternalNode[V])
-			if ri.len() == 1 {
-				b.root = ri.pointers[0]
-				b.height--
-			}
+	if !lazy && del && !b.root.isLeaf() {
+		ri := b.root.(*InternalNode[V])
+		if ri.len() == 1 {
+			b.root = ri.pointers[0]
+			b.height--
 		}
 	}
 	return del
@@ -67,7 +61,7 @@ func (b *BTree[V]) newRoot(up Bytes, node Node[V]) {
 func (b *BTree[V]) baseIterator(low, high Bytes) iter.Seq2[Bytes, *V] {
 	return func(yield func(Bytes, *V) bool) {
 		// get reference to key that is equal to `low` or minimally larger than it
-		leaf, idx := b.root.lbPositionedRef(low)
+		leaf, idx := lbPositionedRef(b.root, low)
 		if leaf == nil {
 			panic("leaf node not found")
 		}

@@ -5,7 +5,6 @@ import (
 	"math"
 )
 
-type Bytes = []byte
 type Hash = [32]byte
 
 func ceilDiv(x, y int) int {
@@ -24,10 +23,12 @@ func abs(x int) int {
 	return x
 }
 
-func printStringBytes(bs []Bytes) {
-	for _, b := range bs {
-		fmt.Println(string(b))
+func assert(cond bool, f string, a ...any) {
+	if cond {
+		return
 	}
+	msg := fmt.Sprintf(f, a...)
+	panic(msg)
 }
 
 // hasRepeatsFn takes a list and a isEqual function and returns if a element occurs more than once in a row
@@ -50,51 +51,12 @@ func hasRepeatsFn[T any](list []T, eq func(a, b T) bool) bool {
 	return false
 }
 
-type Set[T comparable] map[T]struct{}
-
-func NewSet[T comparable]() Set[T] {
-	m := make(Set[T])
-	return m
-}
-
-func (s Set[T]) Add(e T) (dup bool) {
-	if s.Contains(e) {
-		return true
-	}
-
-	s[e] = struct{}{}
-	return false
-}
-
-func (s Set[T]) Remove(e T) {
-	delete(s, e)
-}
-
-func (s Set[T]) Contains(e T) bool {
-	_, ok := s[e]
-	return ok
-}
-
-func (s Set[T]) Len() int {
-	return len(s)
-}
-
-func assert(cond bool, f string, a ...any) {
-	if cond {
-		return
-	}
-	msg := fmt.Sprintf(f, a...)
-	panic(msg)
-}
-
 func shlArr[T any](arr []T, by int) {
 	assert(by >= 0, "cannot be shifted by negative number")
 	if by >= len(arr) {
 		return
 	}
-	preLen := len(arr)
-	copy(arr[:preLen], arr[by:])
-	arr = arr[:preLen] // TODO posiibly redundant
+	copy(arr, arr[by:])
 }
 
 func shrArr[T any](arr []T, by int) {
@@ -102,7 +64,5 @@ func shrArr[T any](arr []T, by int) {
 	if by >= len(arr) {
 		return
 	}
-	preLen := len(arr)
-	copy(arr[by:preLen], arr)
-	arr = arr[:preLen] // todo possibly redundant
+	copy(arr[by:], arr)
 }

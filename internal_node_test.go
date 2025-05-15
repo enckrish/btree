@@ -15,15 +15,17 @@ func MakeInternalNode(deg int) *InternalNode[int] {
 
 	rv, lv := rand.Int(), rand.Int()
 	rightSentLeaf := &LeafNode[int]{
-		keys:   []Bytes{{250}},
-		values: []*int{&rv},
-		next:   nil,
+		keys:     []Bytes{{250}},
+		values:   []*int{&rv},
+		next:     nil,
+		minCount: 1,
 	}
 
 	leftSentLeaf := &LeafNode[int]{
-		keys:   []Bytes{{5}},
-		values: []*int{&lv},
-		next:   rightSentLeaf,
+		keys:     []Bytes{{5}},
+		values:   []*int{&lv},
+		next:     rightSentLeaf,
+		minCount: 1,
 	}
 
 	in.keys = append(in.keys, Bytes{250})
@@ -47,7 +49,7 @@ func MakeFilledNode() (*InternalNode[int], []Bytes) {
 	keys := MakeKeysWithGaps(28, 5)
 	for i, key := range keys {
 		v := i*10 + 1
-		_, newNode := in.setOrInsert(key, &v)
+		_, newNode := setOrInsert(in, key, &v)
 		if newNode != nil {
 			panic(fmt.Sprintf("possible test misconfiguration: at iter %d, more keys than can fit in single node", i))
 		}
@@ -78,7 +80,7 @@ func TestInternalSortedKeys(t *testing.T) {
 
 	for i, key := range keys {
 		v := i*10 + 1
-		_, newNode := in.setOrInsert(key, &v)
+		_, newNode := setOrInsert(in, key, &v)
 		if newNode != nil {
 			panic(fmt.Sprintf("possible test misconfiguration: at iter %d, more keys than can fit in single node", i))
 		}
@@ -94,7 +96,7 @@ func TestInternalSortedKeys(t *testing.T) {
 func TestInternalCorrectValues(t *testing.T) {
 	in, keys := MakeFilledNode()
 	for i, key := range keys {
-		r := in.valueRef(key)
+		r := valueRef[int](in, key)
 		if r == nil {
 			t.Errorf("prefilled key %v is nil", key)
 		}
@@ -106,7 +108,7 @@ func TestInternalCorrectValues(t *testing.T) {
 
 	// All the prefilled keys have only their first bytes filled, any Bytes with non-zero 2nd place will be new
 	h := sha256.Sum256([]byte("Test bytes"))
-	if r := in.valueRef(h[:]); r != nil {
+	if r := valueRef[int](in, h[:]); r != nil {
 		t.Error("value for unadded key")
 	}
 }
@@ -131,7 +133,7 @@ func TestInternalSplit(t *testing.T) {
 	})
 
 	v := rand.Int()
-	upKey, newNode := in.setOrInsert(testKey, &v)
+	upKey, newNode := setOrInsert(in, testKey, &v)
 	node := newNode.(*InternalNode[int])
 
 	lkn := len(in.keys)

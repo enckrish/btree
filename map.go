@@ -20,7 +20,7 @@ func (m Map[K, V]) Set(key K, v *V) {
 
 func (m Map[K, V]) Get(key K) *V {
 	h := m.hashFn(key)
-	v := m.ValueRef(h[:])
+	v := m.GetOp(h[:])
 	return v
 }
 

@@ -3,18 +3,19 @@ package btree
 import (
 	"bytes"
 	"slices"
-	"sort"
 )
 
 type InternalNode[V any] struct {
 	keys     []Bytes
 	pointers []Node[V]
+	minCount int
 }
 
 func newInternalNode[V any](degree int) *InternalNode[V] {
 	return &InternalNode[V]{
 		keys:     make([]Bytes, 0, degree-1),
 		pointers: make([]Node[V], 0, degree),
+		minCount: ceilDiv(degree, 2),
 	}
 }
 
@@ -22,12 +23,12 @@ func (t *InternalNode[V]) len() int {
 	return len(t.pointers)
 }
 
-func (t *InternalNode[V]) minCount() int {
-	return ceilDiv(cap(t.pointers), 2)
+func (t *InternalNode[V]) isLeaf() bool {
+	return false
 }
 
 func (t *InternalNode[V]) needsRebalance() bool {
-	return t.len() < t.minCount()
+	return t.len() < t.minCount
 }
 
 func (t *InternalNode[V]) isHealthy() bool {
@@ -86,64 +87,36 @@ func (t *InternalNode[V]) siblingPair(i int) (left Node[V], right Node[V], downK
 	return og, rSib, i
 }
 
-func (t *InternalNode[V]) insertIndex(key Bytes) (pos int, exists bool) {
-	return sort.Find(len(t.keys), func(i int) int {
-		return bytes.Compare(key, t.keys[i])
-	})
-}
-
 // Returns the index to t.pointers for the given key
 func (t *InternalNode[V]) childIndexForKey(key Bytes) int {
-	pos, exists := t.insertIndex(key)
+	pos, exists := lowerBoundBytesArr(t.keys, key)
 	if exists {
 		return pos + 1
 	}
 	return pos
 }
 
-func (t *InternalNode[V]) lbPositionedRef(key Bytes) (*LeafNode[V], int) {
-	ci := t.childIndexForKey(key)
-	child := t.pointers[ci]
-	l, i := child.lbPositionedRef(key)
-	return l, i
-}
-
-func (t *InternalNode[V]) valueRef(key Bytes) *V {
-	l, i := t.lbPositionedRef(key)
-	if k, v := l.pairAt(i); k != nil && bytes.Equal(k, key) {
-		return v
-	}
-	return nil
-}
-
-func (t *InternalNode[V]) setOrInsert(key Bytes, value *V) (Bytes, Node[V]) {
-	ci := t.childIndexForKey(key)
-	c := t.pointers[ci]
-	key, ptr := c.setOrInsert(key, value)
+func (t *InternalNode[V]) handleInsert(pos int, key Bytes, ptr Node[V]) (Bytes, Node[V]) {
 	if ptr == nil {
 		// No new child formed
 		return nil, nil
 	}
-	up, newNode := t.insertNode(key, ptr)
+
+	// space available in node
+	if len(t.keys) < cap(t.keys) {
+		t.insertAtIndex(pos, key, ptr)
+		return nil, nil
+	}
+
+	// needs splitting
+	up, newNode := t.insertWithSplit(pos, key, ptr)
+
 	// In case, we directly return newNode, it won't return true for (newNode == nil) in the calling function
 	// [See https://go.dev/doc/faq#nil_error]
 	if newNode != nil {
 		return up, newNode
 	}
 	return up, nil
-}
-
-func (t *InternalNode[V]) insertNode(key Bytes, ptr Node[V]) (upKey Bytes, newNode *InternalNode[V]) {
-	idx, _ := t.insertIndex(key)
-
-	// space available in node
-	if len(t.keys) < cap(t.keys) {
-		t.insertAtIndex(idx, key, ptr)
-		return nil, nil
-	}
-
-	// needs splitting
-	return t.insertWithSplit(idx, key, ptr)
 }
 
 func (t *InternalNode[V]) insertAtIndex(idx int, key Bytes, ptr Node[V]) {
@@ -159,7 +132,7 @@ func (t *InternalNode[V]) insertAtIndex(idx int, key Bytes, ptr Node[V]) {
 func (t *InternalNode[V]) insertWithSplit(pos int, key Bytes, ptr Node[V]) (upKey Bytes, newNode *InternalNode[V]) {
 	// maximum number of keys in old node after a split
 	// in case of unequal distribution, it gives the new node more keys (by 1), this is a non-issue
-	size := t.minCount()
+	size := t.minCount
 
 	// construct a temporary node with usual capacity + 1 for easier operations possibly at the cost of performance
 	temp := newInternalNode[V](t.len() + 1)
@@ -216,13 +189,7 @@ func (t *InternalNode[V]) delete(key Bytes, lazy bool) bool {
 }
 
 func (t *InternalNode[V]) rebalanceWith(rightNode Node[V], downKey Bytes) Bytes {
-	// cast sibling as internal node type
-	switch rightNode.(type) {
-	case *InternalNode[V]:
-		break
-	default:
-		panic("expected internal node")
-	}
+	// cast sibling as internal node type, will panic if it isn't
 	rNode := rightNode.(*InternalNode[V])
 
 	// if a single node can contain all the data
@@ -248,7 +215,7 @@ func redistributeInternalUnoptimized[V any](l *InternalNode[V], r *InternalNode[
 	temp.pointers = append(temp.pointers, l.pointers...)
 	temp.pointers = append(temp.pointers, r.pointers...)
 
-	lsz := l.minCount() // num pointers in l
+	lsz := l.minCount // num pointers in l
 	rsz := totalLen - lsz
 
 	l.keys = l.keys[:lsz-1]

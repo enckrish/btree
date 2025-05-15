@@ -34,7 +34,7 @@ func maxPermissibleMapHeight(nKeys int, degree int) int {
 	maxLeaves := nKeys / minLeafKeys // no ceiling
 	minPointers := ceilDiv(degree, 2)
 	expectedMaxHeight := int(logBase(maxLeaves, minPointers)) // no ceiling
-	return expectedMaxHeight
+	return expectedMaxHeight + 1                              // as it didn't account for the root having less than minPointers
 }
 
 func runMapHealthTests[V any](t *testing.T, m *Map[Hash, V], nKeys int, fail bool) (passed bool) {
@@ -81,7 +81,7 @@ func TestMapKeyCount(t *testing.T) {
 	nKeys := len(keys)
 
 	// leftmost leaf
-	l, _ := m.root.lbPositionedRef(nil)
+	l, _ := lbPositionedRef(m.root, nil)
 
 	// `keysCounted` should match nKeys after loop
 	keysCounted := 0
@@ -114,8 +114,8 @@ func TestMapEmptyIter(t *testing.T) {
 }
 
 func TestMapDelete(t *testing.T) {
-	const nKeys = 100
-	const degree = 3
+	const nKeys = 5000
+	const degree = 10
 	const subsetSizeMul = 0.9
 
 	m, _, keys := buildComparableMaps(nKeys, degree)
@@ -123,7 +123,8 @@ func TestMapDelete(t *testing.T) {
 	rand.Shuffle(len(keys), func(i, j int) {
 		keys[i], keys[j] = keys[j], keys[i]
 	})
-	delKeys := keys[:int(float64(len(keys))*subsetSizeMul)]
+	delKeysLen := int(float64(len(keys)) * subsetSizeMul)
+	delKeys := keys[:delKeysLen]
 
 	// try deleting
 	for i, key := range delKeys {
@@ -148,6 +149,32 @@ func TestMapDelete(t *testing.T) {
 			t.Fatalf("deleted key returns non-nil value")
 		}
 	}
+
+	// Check if rest keys are as it is
+	for _, key := range keys[delKeysLen:] {
+		v := m.Get(key)
+		if v == nil {
+			t.Fatalf("non-deleted key returns nil value")
+		}
+	}
+
+	// Delete all and check height
+	for _, key := range keys[delKeysLen:] {
+		del := m.Del(key)
+		if !del {
+			t.Fatalf("deletion failed")
+		}
+	}
+
+	if m.height != 0 {
+		t.Fatalf("height should be 0, got %d", m.height)
+	}
+
+	// Check if reinsertions work
+	for _, key := range keys {
+		v := rand.Int()
+		m.Set(key, &v)
+	}
 }
 
 // Test that map.All(0 iterates over all keys in sorted order
@@ -167,7 +194,8 @@ func TestMapAllIterator(t *testing.T) {
 }
 
 func BenchmarkTreeSet(b *testing.B) {
-	m := NewMap[Hash, int](8, func(s Hash) Hash {
+	const degree = 8
+	m := NewMap[Hash, int](degree, func(s Hash) Hash {
 		return s
 	})
 	keys, values := GetData(b.N)
@@ -187,3 +215,31 @@ func BenchmarkGoMapSet(b *testing.B) {
 		m[keys[i]] = values[i]
 	}
 }
+
+//
+//func BenchmarkSearchFnCmp(b *testing.B) {
+//	const degree = 5
+//
+//	preValue := lowerBoundBytesArr
+//	defer func() {
+//		lowerBoundBytesArr = preValue
+//	}()
+//
+//	fns := [2]func([]Bytes, Bytes) (int, bool){lbBinSearch, lbLinSearch}
+//	names := [2]string{"binSearch", "linSearch"}
+//
+//	for k := range fns {
+//		b.Run(names[k], func(b *testing.B) {
+//			lowerBoundBytesArr = fns[k]
+//			keys, values := GetData(b.N)
+//			m := NewMap[Hash, int](degree, func(s Hash) Hash {
+//				return s
+//			})
+//			b.ResetTimer()
+//			b.ReportAllocs()
+//			for i := range b.N {
+//				m.Set(keys[i], &values[i])
+//			}
+//		})
+//	}
+//}

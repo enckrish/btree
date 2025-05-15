@@ -3,20 +3,21 @@ package btree
 import (
 	"bytes"
 	"slices"
-	"sort"
 )
 
 type LeafNode[V any] struct {
-	keys   []Bytes
-	values []*V
-	next   *LeafNode[V] // points to the leaf to its right
+	keys     []Bytes
+	values   []*V
+	next     *LeafNode[V] // points to the leaf to its right
+	minCount int
 }
 
 func newLeafNode[V any](nKeys int) *LeafNode[V] {
 	return &LeafNode[V]{
-		keys:   make([]Bytes, 0, nKeys),
-		values: make([]*V, 0, nKeys),
-		next:   nil,
+		keys:     make([]Bytes, 0, nKeys),
+		values:   make([]*V, 0, nKeys),
+		next:     nil,
+		minCount: ceilDiv(nKeys, 2),
 	}
 }
 
@@ -28,12 +29,12 @@ func (l *LeafNode[V]) len() int {
 	return len(l.keys)
 }
 
-func (l *LeafNode[V]) minCount() int {
-	return ceilDiv(cap(l.keys), 2)
+func (l *LeafNode[V]) isLeaf() bool {
+	return true
 }
+
 func (l *LeafNode[V]) needsRebalance() bool {
-	minKeys := l.minCount()
-	return l.len() < minKeys
+	return l.len() < l.minCount
 }
 
 func (l *LeafNode[V]) isHealthy() bool {
@@ -60,23 +61,8 @@ func (l *LeafNode[V]) pairAt(idx int) (Bytes, *V) {
 	return l.keys[idx], l.values[idx]
 }
 
-func (l *LeafNode[V]) lbPositionedRef(key Bytes) (*LeafNode[V], int) {
-	i := sort.Search(l.len(), func(i int) bool {
-		return bytes.Compare(key, l.keys[i]) <= 0
-	})
-	return l, i
-}
-
-func (l *LeafNode[V]) valueRef(key Bytes) *V {
-	l, i := l.lbPositionedRef(key)
-	if i < l.len() && bytes.Equal(l.keys[i], key) {
-		return l.values[i]
-	}
-	return nil
-}
-
 func (l *LeafNode[V]) setOrInsert(key Bytes, value *V) (Bytes, Node[V]) {
-	_, idx := l.lbPositionedRef(key)
+	idx, _ := lowerBoundBytesArr(l.keys, key)
 
 	// Key already exists in tree
 	if idx < l.len() && bytes.Equal(l.keys[idx], key) {
@@ -106,7 +92,7 @@ func (l *LeafNode[V]) insertAtIndex(idx int, key Bytes, value *V) {
 }
 
 func (l *LeafNode[V]) insertWithSplit(idx int, key Bytes, value *V) *LeafNode[V] {
-	size := l.minCount()             // number of keys to keep in the old node
+	size := l.minCount               // number of keys to keep in the old node
 	r := newLeafNode[V](cap(l.keys)) // new right node
 	r.next = l.next
 	l.next = r
@@ -133,7 +119,7 @@ func (l *LeafNode[V]) insertWithSplit(idx int, key Bytes, value *V) *LeafNode[V]
 }
 
 func (l *LeafNode[V]) delete(key Bytes, _ bool) bool {
-	l, i := l.lbPositionedRef(key)
+	i, _ := lowerBoundBytesArr(l.keys, key)
 
 	// key found
 	if i < l.len() && bytes.Equal(l.keys[i], key) {
@@ -149,13 +135,7 @@ func (l *LeafNode[V]) delete(key Bytes, _ bool) bool {
 }
 
 func (l *LeafNode[V]) rebalanceWith(rightNode Node[V], _ Bytes) Bytes {
-	// cast sibling as leaf node type
-	switch rightNode.(type) {
-	case *LeafNode[V]:
-		break
-	default:
-		panic("expected leaf node")
-	}
+	// cast sibling as leaf node type, will panic if it isn't
 	rLeaf := rightNode.(*LeafNode[V])
 
 	// if a single node can contain all the data
@@ -179,16 +159,16 @@ func redistributeLeafUnoptimized[V any](l *LeafNode[V], r *LeafNode[V]) {
 	temp.values = append(temp.values, l.values...)
 	temp.values = append(temp.values, r.values...)
 
-	lsz := l.minCount()
+	lsz := l.minCount
 	rsz := totalLen - lsz
 
-	copy(l.keys[:lsz], temp.keys)
-	copy(l.values[:lsz], temp.values)
 	l.keys = l.keys[:lsz]
 	l.values = l.values[:lsz]
+	copy(l.keys, temp.keys)
+	copy(l.values, temp.values)
 
-	copy(r.keys[:rsz], temp.keys[lsz:])
-	copy(r.values[:rsz], temp.values[lsz:])
 	r.keys = r.keys[:rsz]
 	r.values = r.values[:rsz]
+	copy(r.keys, temp.keys[lsz:])
+	copy(r.values, temp.values[lsz:])
 }
