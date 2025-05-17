@@ -11,13 +11,15 @@ type BTree[V any] struct {
 	root   Node[V] // root starts from being a *LeafNode[V] then changes to *InternalNode[V] after first split
 	deg    int     // defined as the number of pointers from each node
 	height int
+	stack  Stack[SetStackEntry[V]]
 }
 
-func NewBTree[V any](degree int) *BTree[V] {
+func NewBTree[V any](degree int, expectedHeight int) *BTree[V] {
 	return &BTree[V]{
 		root:   newLeafNode[V](degree - 1),
 		deg:    degree,
 		height: 0,
+		stack:  NewStack[SetStackEntry[V]](expectedHeight),
 	}
 }
 
@@ -31,7 +33,7 @@ func (b *BTree[V]) GetOp(key Bytes) *V {
 
 // SetOp sets/inserts the given key-value pair in the map, and handles root node split if needed
 func (b *BTree[V]) SetOp(key Bytes, value *V) {
-	key, newNode := setOrInsert(b.root, key, value)
+	key, newNode := setOrInsert(b.root, key, value, b.stack)
 	if newNode != nil {
 		b.newRoot(key, newNode)
 	}
@@ -56,6 +58,9 @@ func (b *BTree[V]) newRoot(up Bytes, node Node[V]) {
 	root.pointers = append(root.pointers, b.root, node)
 	b.root = root
 	b.height++
+	if cap(b.stack) < b.height {
+		b.stack = NewStack[SetStackEntry[V]](2 * b.height)
+	}
 }
 
 func (b *BTree[V]) baseIterator(low, high Bytes) iter.Seq2[Bytes, *V] {

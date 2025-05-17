@@ -1,17 +1,19 @@
 package btree
 
-import "bytes"
+import (
+	"bytes"
+)
 
-func setOrInsert[V any](n Node[V], key Bytes, value *V) (Bytes, Node[V]) {
-	type P struct {
-		node *InternalNode[V]
-		pos  int
-	}
+type SetStackEntry[V any] struct {
+	node *InternalNode[V]
+	pos  int
+}
 
-	st := NewStack[P](0)
+func setOrInsert[V any](n Node[V], key Bytes, value *V, st Stack[SetStackEntry[V]]) (Bytes, Node[V]) {
+	defer st.Clear()
 	for !n.isLeaf() {
 		ni := n.(*InternalNode[V])
-		st.Push(P{node: ni})
+		st.Push(SetStackEntry[V]{node: ni})
 		ci := ni.childIndexForKey(key)
 		st.Top().pos = ci
 		n = ni.pointers[ci]

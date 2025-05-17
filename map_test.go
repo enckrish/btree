@@ -11,7 +11,7 @@ import (
 func buildComparableMaps(nKeys, degree int) (*Map[Hash, int], map[Hash]int, []Hash) {
 	m := NewMap[Hash, int](degree, func(s Hash) Hash {
 		return s
-	})
+	}, maxPermissibleMapHeight(nKeys, degree))
 	goMap := map[Hash]int{}
 	keys, values := GetData(nKeys)
 
@@ -30,6 +30,9 @@ func buildComparableMaps(nKeys, degree int) (*Map[Hash, int], map[Hash]int, []Ha
 
 // A B+ tree with degree d and keys k must have max height = floor(log(x = floor(k / ceil(d-1/2)), base = ceil(d/2)))
 func maxPermissibleMapHeight(nKeys int, degree int) int {
+	if nKeys < degree-1 {
+		return 1
+	}
 	minLeafKeys := ceilDiv(degree-1, 2)
 	maxLeaves := nKeys / minLeafKeys // no ceiling
 	minPointers := ceilDiv(degree, 2)
@@ -107,7 +110,7 @@ func TestMapHealthy(t *testing.T) {
 func TestMapEmptyIter(t *testing.T) {
 	m := NewMap[Hash, int](3, func(s Hash) Hash {
 		return s
-	})
+	}, 0)
 	for range m.All() {
 		t.Fatalf("iterations shouldn't have run on an empty map")
 	}
@@ -194,10 +197,10 @@ func TestMapAllIterator(t *testing.T) {
 }
 
 func BenchmarkTreeSet(b *testing.B) {
-	const degree = 8
+	const degree = 30
 	m := NewMap[Hash, int](degree, func(s Hash) Hash {
 		return s
-	})
+	}, maxPermissibleMapHeight(b.N, degree))
 	keys, values := GetData(b.N)
 	b.ResetTimer()
 	b.ReportAllocs()

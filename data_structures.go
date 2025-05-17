@@ -60,3 +60,7 @@ func (s *Stack[T]) Top() *T {
 	v := &(*s)[len(*s)-1]
 	return v
 }
+
+func (s *Stack[T]) Clear() {
+	*s = (*s)[:0]
+}

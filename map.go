@@ -5,8 +5,8 @@ type Map[K any, V any] struct {
 	hashFn func(K) Hash
 }
 
-func NewMap[K any, V any](degree int, hashFn func(K) Hash) *Map[K, V] {
-	btree := NewBTree[V](degree)
+func NewMap[K any, V any](degree int, hashFn func(K) Hash, expectedHeight int) *Map[K, V] {
+	btree := NewBTree[V](degree, expectedHeight)
 	return &Map[K, V]{
 		BTree:  btree,
 		hashFn: hashFn,
