@@ -84,7 +84,7 @@ func TestMapKeyCount(t *testing.T) {
 	nKeys := len(keys)
 
 	// leftmost leaf
-	l, _ := lbPositionedRef(m.root, nil)
+	l, _ := leafAndPathForKey(m.root, nil, nil)
 
 	// `keysCounted` should match nKeys after loop
 	keysCounted := 0
@@ -114,6 +114,14 @@ func TestMapEmptyIter(t *testing.T) {
 	for range m.All() {
 		t.Fatalf("iterations shouldn't have run on an empty map")
 	}
+}
+
+func TestMapHealthAfterInserts(t *testing.T) {
+	const nKeys = 50000
+	const degree = 80
+
+	m, _, _ := buildComparableMaps(nKeys, degree)
+	runMapHealthTests(t, m, nKeys, true)
 }
 
 func TestMapDelete(t *testing.T) {
@@ -197,7 +205,7 @@ func TestMapAllIterator(t *testing.T) {
 }
 
 func BenchmarkTreeSet(b *testing.B) {
-	const degree = 30
+	const degree = 15
 	m := NewMap[Hash, int](degree, func(s Hash) Hash {
 		return s
 	}, maxPermissibleMapHeight(b.N, degree))
@@ -218,31 +226,3 @@ func BenchmarkGoMapSet(b *testing.B) {
 		m[keys[i]] = values[i]
 	}
 }
-
-//
-//func BenchmarkSearchFnCmp(b *testing.B) {
-//	const degree = 5
-//
-//	preValue := lowerBoundBytesArr
-//	defer func() {
-//		lowerBoundBytesArr = preValue
-//	}()
-//
-//	fns := [2]func([]Bytes, Bytes) (int, bool){lbBinSearch, lbLinSearch}
-//	names := [2]string{"binSearch", "linSearch"}
-//
-//	for k := range fns {
-//		b.Run(names[k], func(b *testing.B) {
-//			lowerBoundBytesArr = fns[k]
-//			keys, values := GetData(b.N)
-//			m := NewMap[Hash, int](degree, func(s Hash) Hash {
-//				return s
-//			})
-//			b.ResetTimer()
-//			b.ReportAllocs()
-//			for i := range b.N {
-//				m.Set(keys[i], &values[i])
-//			}
-//		})
-//	}
-//}

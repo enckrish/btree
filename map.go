@@ -26,5 +26,5 @@ func (m Map[K, V]) Get(key K) *V {
 
 func (m Map[K, V]) Del(key K) bool {
 	h := m.hashFn(key)
-	return m.DelOp(h[:], false)
+	return m.DelOp(h[:])
 }

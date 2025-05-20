@@ -118,7 +118,7 @@ func (l *LeafNode[V]) insertWithSplit(idx int, key Bytes, value *V) *LeafNode[V]
 	return r
 }
 
-func (l *LeafNode[V]) delete(key Bytes, _ bool) bool {
+func (l *LeafNode[V]) delete(key Bytes) bool {
 	i, _ := lowerBoundBytesArr(l.keys, key)
 
 	// key found

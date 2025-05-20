@@ -23,9 +23,7 @@ func (t *InternalNode[V]) len() int {
 	return len(t.pointers)
 }
 
-func (t *InternalNode[V]) isLeaf() bool {
-	return false
-}
+func (t *InternalNode[V]) isLeaf() bool { return false }
 
 func (t *InternalNode[V]) needsRebalance() bool {
 	return t.len() < t.minCount
@@ -155,19 +153,13 @@ func (t *InternalNode[V]) insertWithSplit(pos int, key Bytes, ptr Node[V]) (upKe
 	return upKey, r
 }
 
-func (t *InternalNode[V]) delete(key Bytes, lazy bool) bool {
-	assert(!lazy, "lazy delete unimplemented")
-
-	ci := t.childIndexForKey(key)
-	child := t.pointers[ci]
-	del := child.delete(key, lazy)
-
-	if !del || lazy {
+func (t *InternalNode[V]) handleDelete(pos int, del bool) bool {
+	if !del {
 		return del
 	}
 
-	if child.needsRebalance() {
-		left, right, dkIdx := t.siblingPair(ci)
+	if t.pointers[pos].needsRebalance() {
+		left, right, dkIdx := t.siblingPair(pos)
 		upKey := left.rebalanceWith(right, t.keys[dkIdx])
 
 		if upKey != nil { // no nodes deleted, only strictly rebalanced

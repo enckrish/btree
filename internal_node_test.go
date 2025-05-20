@@ -47,7 +47,7 @@ func MakeKeysWithGaps(n int, gap int) []Bytes {
 func MakeFilledNode() (*InternalNode[int], []Bytes) {
 	in := MakeInternalNode(30)
 	keys := MakeKeysWithGaps(28, 5)
-	st := NewStack[SetStackEntry[int]](2)
+	st := NewStack[TraversalPositions[int]](2)
 	for i, key := range keys {
 		v := i*10 + 1
 		_, newNode := setOrInsert(in, key, &v, st)
@@ -75,7 +75,7 @@ func TestInternalKeysStaySingle(t *testing.T) {
 func TestInternalSortedKeys(t *testing.T) {
 	in := MakeInternalNode(30)
 	keys := MakeKeysWithGaps(20, 5)
-	st := NewStack[SetStackEntry[int]](2)
+	st := NewStack[TraversalPositions[int]](2)
 	rand.Shuffle(len(keys), func(i, j int) {
 		keys[i], keys[j] = keys[j], keys[i]
 	})
@@ -134,7 +134,7 @@ func TestInternalSplit(t *testing.T) {
 		return bytes.Compare(a, b)
 	})
 
-	st := NewStack[SetStackEntry[int]](2)
+	st := NewStack[TraversalPositions[int]](2)
 	v := rand.Int()
 	upKey, newNode := setOrInsert(in, testKey, &v, st)
 	node := newNode.(*InternalNode[int])

@@ -11,15 +11,16 @@ type BTree[V any] struct {
 	root   Node[V] // root starts from being a *LeafNode[V] then changes to *InternalNode[V] after first split
 	deg    int     // defined as the number of pointers from each node
 	height int
-	stack  Stack[SetStackEntry[V]]
+	stack  Stack[TraversalPositions[V]]
 }
 
 func NewBTree[V any](degree int, expectedHeight int) *BTree[V] {
+	// expectedHeight parameter helps reduce number of allocations for stack expansion
 	return &BTree[V]{
 		root:   newLeafNode[V](degree - 1),
 		deg:    degree,
 		height: 0,
-		stack:  NewStack[SetStackEntry[V]](expectedHeight),
+		stack:  NewStack[TraversalPositions[V]](expectedHeight),
 	}
 }
 
@@ -35,14 +36,21 @@ func (b *BTree[V]) GetOp(key Bytes) *V {
 func (b *BTree[V]) SetOp(key Bytes, value *V) {
 	key, newNode := setOrInsert(b.root, key, value, b.stack)
 	if newNode != nil {
-		b.newRoot(key, newNode)
+		root := newInternalNode[V](b.deg)
+		root.keys = append(root.keys, key)
+		root.pointers = append(root.pointers, b.root, newNode)
+
+		b.root = root
+		b.height++
+		if cap(b.stack) < b.height {
+			b.stack = NewStack[TraversalPositions[V]](2 * b.height)
+		}
 	}
 }
 
-func (b *BTree[V]) DelOp(key Bytes, lazy bool) bool {
-	assert(!lazy, "lazy delete unimplemented")
-	del := b.root.delete(key, lazy)
-	if !lazy && del && !b.root.isLeaf() {
+func (b *BTree[V]) DelOp(key Bytes) bool {
+	del := deleteFromNode(b.root, key, b.stack)
+	if del && !b.root.isLeaf() {
 		ri := b.root.(*InternalNode[V])
 		if ri.len() == 1 {
 			b.root = ri.pointers[0]
@@ -52,21 +60,11 @@ func (b *BTree[V]) DelOp(key Bytes, lazy bool) bool {
 	return del
 }
 
-func (b *BTree[V]) newRoot(up Bytes, node Node[V]) {
-	root := newInternalNode[V](b.deg)
-	root.keys = append(root.keys, up)
-	root.pointers = append(root.pointers, b.root, node)
-	b.root = root
-	b.height++
-	if cap(b.stack) < b.height {
-		b.stack = NewStack[SetStackEntry[V]](2 * b.height)
-	}
-}
-
 func (b *BTree[V]) baseIterator(low, high Bytes) iter.Seq2[Bytes, *V] {
 	return func(yield func(Bytes, *V) bool) {
 		// get reference to key that is equal to `low` or minimally larger than it
-		leaf, idx := lbPositionedRef(b.root, low)
+		leaf, _ := leafAndPathForKey(b.root, low, nil)
+		idx, _ := lowerBoundBytesArr(leaf.keys, low)
 		if leaf == nil {
 			panic("leaf node not found")
 		}
