@@ -1,5 +1,7 @@
 package btree
 
+import "iter"
+
 type Set[T comparable] map[T]struct{}
 
 func NewSet[T comparable]() Set[T] {
@@ -27,6 +29,16 @@ func (s Set[T]) Contains(e T) bool {
 
 func (s Set[T]) Len() int {
 	return len(s)
+}
+
+func (s Set[T]) All() iter.Seq[T] {
+	return func(yield func(T) bool) {
+		for e := range s {
+			if !yield(e) {
+				return
+			}
+		}
+	}
 }
 
 type Stack[T any] []T

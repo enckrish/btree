@@ -38,17 +38,3 @@ func GetData(nkeys int) ([]Hash, []int) {
 	}
 	return keys, values
 }
-
-func computeMapHeight[K, V any](m *Map[K, V]) int {
-	node := m.root
-	height := 0
-	for {
-		switch node.(type) {
-		case *LeafNode[V]:
-			return height
-		case *InternalNode[V]:
-			height++
-			node = node.(*InternalNode[V]).pointers[0]
-		}
-	}
-}
